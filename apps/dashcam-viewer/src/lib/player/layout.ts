@@ -1,5 +1,5 @@
 /**
- * Camera layout presets (TesClip-style), as pure data + selection logic.
+ * Camera layout presets, as pure data + selection logic.
  *
  * A layout maps the cameras available on an event onto a set of *slots*. The
  * grid component renders one tile per slot. This module is DOM-free and unit-

@@ -1,9 +1,8 @@
 # TeslaCam Viewer
 
-A local-first, in-browser TeslaCam / Sentry footage viewer — our open version of
-[tesclip.com](https://tesclip.com/). It opens a real `TeslaCam` USB folder, plays
-all cameras in sync, overlays telemetry, draws the event location on a map, and
-exports stills and combined multi-camera clips.
+A local-first, in-browser TeslaCam / Sentry footage viewer. It opens a real
+`TeslaCam` USB folder, plays all cameras in sync, overlays telemetry, draws the
+event location on a map, and exports stills and combined multi-camera clips.
 
 **100% client-side. No backend. No upload.** Your footage never leaves your machine —
 files are read directly in the browser via the File System Access API.
@@ -25,7 +24,7 @@ files are read directly in the browser via the File System Access API.
   reason.
 - **Synchronized multi-camera grid** driven by a single **master clock**, so cameras
   never drift, even across segment boundaries.
-- **Camera layout presets** (TesClip-style):
+- **Camera layout presets**:
   - **Full front** — one large front camera.
   - **Front + back**.
   - **4-up** — front / back / left + right repeaters.

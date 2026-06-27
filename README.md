@@ -3,10 +3,9 @@
 An open, **privacy-first** toolkit for Tesla owners, in two parts:
 
 1. **Dashcam Viewer** (`apps/dashcam-viewer/`) — a local-first, in-browser viewer for
-   TeslaCam / Sentry Mode footage. Inspired by [TesClip](https://tesclip.com/): it reads the
-   raw `TeslaCam` folders straight off your USB drive, plays all cameras in sync, overlays
-   telemetry, and draws the GPS route on a map. **Your footage never leaves your machine** —
-   there is no upload and no server.
+   TeslaCam / Sentry Mode footage. It reads the raw `TeslaCam` folders straight off your USB
+   drive, plays all cameras in sync, overlays telemetry, and draws the GPS route on a map.
+   **Your footage never leaves your machine** — there is no upload and no server.
 
 2. **Tesla Tracker** (`custom_components/tesla_tracker/`) — a
    [Home Assistant](https://www.home-assistant.io/) custom integration (HACS-installable) that

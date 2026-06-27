@@ -15,6 +15,7 @@ CONF_UNIT: Final = "unit"
 CONF_DAILY_RESET: Final = "daily_reset"
 CONF_IDLE_GAP: Final = "idle_gap"
 CONF_MIN_DISTANCE: Final = "min_distance"
+CONF_SHOW_PANEL: Final = "show_panel"
 
 # --- Units ------------------------------------------------------------------
 UNIT_KM: Final = "km"
@@ -30,6 +31,20 @@ DEFAULT_IDLE_GAP: Final = 300
 # Minimum distance (in odometer source units, normally km) to count as a drive.
 MIN_DRIVE_DISTANCE: Final = 0.05
 DEFAULT_MIN_DISTANCE: Final = 0.5
+# Whether the bundled local-first dashcam viewer sidebar panel is shown.
+DEFAULT_SHOW_PANEL: Final = True
+
+# --- Dashcam viewer panel ---------------------------------------------------
+# The prebuilt viewer bundle is committed under this package's ``panel/`` dir
+# (synced by scripts/build_panel.sh) and served same-origin from HA.
+PANEL_DIR_NAME: Final = "panel"
+# URL the static bundle is mounted at (same-origin, so the iframe's File System
+# Access API works when HA itself is on a secure context).
+PANEL_URL_PATH: Final = "/tesla_tracker_panel"
+# Sidebar panel slug (the path after /<slug> in the HA frontend URL).
+PANEL_SLUG: Final = "tesla-tracker-dashcam-viewer"
+PANEL_TITLE: Final = "Dashcam Viewer"
+PANEL_ICON: Final = "mdi:cctv"
 
 # --- Storage ----------------------------------------------------------------
 STORAGE_VERSION: Final = 1

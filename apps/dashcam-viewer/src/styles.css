@@ -67,6 +67,9 @@ body {
 .picker-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .picker-drop-hint { color: var(--muted); margin-top: 22px; font-size: 13px; }
 .picker-note { color: #d8b46a; font-size: 12px; margin-top: 16px; }
+.picker--dragfirst { border-style: dashed; border-width: 2px; }
+.picker--dragfirst.picker--drag { border-color: var(--accent); }
+.picker-drop-primary { font-size: 16px; margin: 0 0 20px; line-height: 1.5; }
 
 /* Sidebar */
 .sidebar {

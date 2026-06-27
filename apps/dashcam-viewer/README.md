@@ -88,6 +88,32 @@ npm run lint     # tsc --noEmit type-check
 
 Requires Node 18+.
 
+## Run inside Home Assistant (sidebar panel)
+
+The viewer can run **embedded in Home Assistant** as a **Dashcam Viewer** sidebar
+panel, bundled into the Tesla Tracker HACS integration. The integration serves
+the prebuilt viewer as same-origin static files and registers an `iframe` panel —
+no extra install, and your footage still never leaves the browser.
+
+- The committed bundle lives at `custom_components/tesla_tracker/panel/`. Rebuild
+  and sync it from this app with:
+
+  ```bash
+  bash scripts/build_panel.sh   # from the repo root
+  ```
+
+  This runs `npm run build` and copies `dist/` into the integration's `panel/`
+  directory. The build uses Vite `base: './'`, so all asset URLs are **relative**
+  (`./assets/...`) and work from HA's arbitrary static mount path.
+
+- **Folder picker vs. drag-and-drop in HA.** Served same-origin, the File System
+  Access API folder picker works inside the panel **when HA is on a secure
+  context** (HTTPS / `localhost` — e.g. Nabu Casa Remote or an HTTPS reverse
+  proxy). On plain-HTTP LAN access the viewer auto-detects the insecure context
+  (`src/lib/teslacam/secureContext.ts`) and makes **drag-and-drop the primary
+  path**, with a friendly note explaining the picker needs HTTPS. Either way
+  footage is read locally and never uploaded.
+
 ## Browser support
 
 | Capability                         | Chrome / Edge | Firefox       | Safari        |

@@ -3,8 +3,8 @@ import {
   loadFromDataTransfer,
   loadFromFileList,
   pickDirectory,
-  supportsDirectoryPicker,
 } from '../lib/teslacam/loadDirectory';
+import { currentPickerMode } from '../lib/teslacam/secureContext';
 import type { ParsedLibrary } from '../lib/teslacam/types';
 
 interface Props {
@@ -17,12 +17,21 @@ interface Props {
 /**
  * Entry point: pick a real `TeslaCam` folder (File System Access API), fall
  * back to `<input webkitdirectory>` / drag-and-drop, or load the demo event.
+ *
+ * The primary affordance is chosen by `currentPickerMode()`:
+ *   - `'picker'`   — secure context (HTTPS / localhost) *and* the File System
+ *                    Access API is present: the native folder picker is offered.
+ *   - `'dragdrop'` — insecure context (e.g. HA over plain HTTP) or no API:
+ *                    drag-and-drop becomes the primary path and a friendly note
+ *                    explains the picker needs HTTPS. Footage stays local either
+ *                    way — drag-and-drop reads files entirely in the browser.
  */
 export function SourcePicker({ onLibrary, onDemo, onError, onBusyChange }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
-  const canPick = supportsDirectoryPicker();
+  const mode = currentPickerMode();
+  const canPick = mode === 'picker';
 
   const run = useCallback(
     async (fn: () => Promise<ParsedLibrary>) => {
@@ -56,7 +65,9 @@ export function SourcePicker({ onLibrary, onDemo, onError, onBusyChange }: Props
 
   return (
     <div
-      className={`picker ${dragOver ? 'picker--drag' : ''}`}
+      className={`picker ${dragOver ? 'picker--drag' : ''} ${
+        canPick ? '' : 'picker--dragfirst'
+      }`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -73,44 +84,59 @@ export function SourcePicker({ onLibrary, onDemo, onError, onBusyChange }: Props
         100% local. Nothing is uploaded — files are read directly in your browser.
       </p>
 
-      <div className="picker-actions">
-        {canPick ? (
-          <button
-            className="btn btn--primary"
-            disabled={busy}
-            onClick={() => void run(pickDirectory)}
-          >
-            Choose TeslaCam folder
-          </button>
-        ) : (
-          <button
-            className="btn btn--primary"
-            disabled={busy}
-            onClick={() => inputRef.current?.click()}
-          >
-            Choose TeslaCam folder
-          </button>
-        )}
-
-        <button className="btn" disabled={busy} onClick={onDemo}>
-          Load sample event
-        </button>
-      </div>
-
-      {busy && (
-        <p className="picker-loading" role="status" aria-live="polite">
-          <span className="spinner" aria-hidden="true" /> Reading folder…
-        </p>
-      )}
-
-      <p className="picker-drop-hint">…or drag &amp; drop a TeslaCam folder here</p>
-
-      {!canPick && (
-        <p className="picker-note">
-          Your browser lacks the File System Access API; using the
-          folder-input fallback. For the best experience use a Chromium-based
-          browser (Chrome / Edge).
-        </p>
+      {canPick ? (
+        <>
+          <div className="picker-actions">
+            <button
+              className="btn btn--primary"
+              disabled={busy}
+              onClick={() => void run(pickDirectory)}
+            >
+              Choose TeslaCam folder
+            </button>
+            <button className="btn" disabled={busy} onClick={onDemo}>
+              Load sample event
+            </button>
+          </div>
+          {busy && (
+            <p className="picker-loading" role="status" aria-live="polite">
+              <span className="spinner" aria-hidden="true" /> Reading folder…
+            </p>
+          )}
+          <p className="picker-drop-hint">…or drag &amp; drop a TeslaCam folder here</p>
+        </>
+      ) : (
+        <>
+          {/* Insecure context / no File System Access API: drag-and-drop is the
+              primary path. It reads files locally just like the picker. */}
+          <p className="picker-drop-primary">
+            Drag &amp; drop your <strong>TeslaCam</strong> folder anywhere on this
+            panel to begin.
+          </p>
+          <div className="picker-actions">
+            <button
+              className="btn btn--primary"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              Or choose a folder…
+            </button>
+            <button className="btn" disabled={busy} onClick={onDemo}>
+              Load sample event
+            </button>
+          </div>
+          {busy && (
+            <p className="picker-loading" role="status" aria-live="polite">
+              <span className="spinner" aria-hidden="true" /> Reading folder…
+            </p>
+          )}
+          <p className="picker-note">
+            The one-click folder picker needs a <strong>secure (HTTPS)</strong>{' '}
+            connection — e.g. access Home Assistant via Nabu Casa Remote or an
+            HTTPS reverse proxy to enable it. Drag-and-drop and the folder chooser
+            above work right now, and your footage still never leaves your browser.
+          </p>
+        </>
       )}
 
       {/* webkitdirectory fallback input */}

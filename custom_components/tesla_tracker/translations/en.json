@@ -1,0 +1,101 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tesla Tracker",
+        "description": "Pick the source entities from your Tesla Fleet integration and choose your tracking preferences.",
+        "data": {
+          "odometer_entity": "Odometer sensor",
+          "tracker_entity": "Location / device tracker",
+          "shift_entity": "Shift state sensor (optional)",
+          "unit": "Distance unit",
+          "daily_reset": "Daily reset time",
+          "idle_gap": "Idle gap before a drive ends (seconds)",
+          "min_distance": "Minimum distance to count as a drive (km)"
+        },
+        "data_description": {
+          "odometer_entity": "A numeric odometer sensor in kilometres. This is the primary source for distance.",
+          "tracker_entity": "Used to record the route polyline and end-of-drive location.",
+          "shift_entity": "If present, park/drive gear gives the most accurate drive boundaries.",
+          "idle_gap": "How long the car must be stationary before a drive is considered finished.",
+          "min_distance": "Drives shorter than this are discarded as noise."
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "The selected entity could not be found. Make sure the Tesla Fleet integration is set up first."
+    },
+    "abort": {
+      "already_configured": "This odometer entity is already being tracked."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tesla Tracker options",
+        "data": {
+          "odometer_entity": "Odometer sensor",
+          "tracker_entity": "Location / device tracker",
+          "shift_entity": "Shift state sensor (optional)",
+          "unit": "Distance unit",
+          "daily_reset": "Daily reset time",
+          "idle_gap": "Idle gap before a drive ends (seconds)",
+          "min_distance": "Minimum distance to count as a drive (km)"
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "The selected entity could not be found."
+    }
+  },
+  "device": {
+    "tesla_tracker": {
+      "name": "Tesla Tracker"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "distance_today": { "name": "Distance today" },
+      "distance_yesterday": { "name": "Distance yesterday" },
+      "distance_this_week": { "name": "Distance this week" },
+      "distance_this_month": { "name": "Distance this month" },
+      "distance_this_year": { "name": "Distance this year" },
+      "distance_total": { "name": "Distance total" },
+      "drives_today": { "name": "Drives today" },
+      "drives_this_week": { "name": "Drives this week" },
+      "drives_this_month": { "name": "Drives this month" },
+      "duration_today": { "name": "Time driven today" },
+      "duration_this_week": { "name": "Time driven this week" },
+      "duration_this_month": { "name": "Time driven this month" },
+      "avg_distance_per_day_this_month": { "name": "Average distance per driving day (this month)" },
+      "longest_drive_this_month": { "name": "Longest drive this month" },
+      "last_drive": { "name": "Last drive" }
+    }
+  },
+  "services": {
+    "recalculate": {
+      "name": "Recalculate",
+      "description": "Rebuild rollups from the stored drive history and refresh all sensors."
+    },
+    "export_drives": {
+      "name": "Export drives",
+      "description": "Write the full drive history (with routes) to a JSON file in the configuration directory.",
+      "fields": {
+        "filename": {
+          "name": "Filename",
+          "description": "Target filename, relative to the configuration directory."
+        }
+      }
+    },
+    "clear_history": {
+      "name": "Clear history",
+      "description": "Permanently delete all stored drives. Cannot be undone.",
+      "fields": {
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be enabled for the deletion to proceed."
+        }
+      }
+    }
+  }
+}

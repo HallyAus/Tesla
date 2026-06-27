@@ -1,0 +1,142 @@
+# Tesla Tracker - Lovelace dashboard
+#
+# Import as a new dashboard (Settings > Dashboards > Add dashboard >
+# "New dashboard from scratch", then the 3-dot menu > "Edit in YAML" and paste),
+# or copy individual cards into an existing view.
+#
+# Entity IDs assume the default device/entity naming `sensor.tesla_tracker_*`;
+# adjust if you renamed the device. Replace `device_tracker.tesla` in the map
+# card with your tesla_fleet location entity.
+#
+# Stock cards only, EXCEPT clearly-marked optional sections that need HACS
+# frontend cards (ApexCharts, flex-table-card). Those are commented out so this
+# file works out of the box. See dashboards/README.md for install notes.
+
+title: Tesla Tracker
+views:
+  - title: Overview
+    path: tesla-tracker
+    icon: mdi:car-electric
+    cards:
+      # === KPI glance row: today / week / month / year ===================
+      - type: glance
+        title: Distance
+        columns: 4
+        entities:
+          - entity: sensor.tesla_tracker_distance_today
+            name: Today
+          - entity: sensor.tesla_tracker_distance_this_week
+            name: This week
+          - entity: sensor.tesla_tracker_distance_this_month
+            name: This month
+          - entity: sensor.tesla_tracker_distance_this_year
+            name: This year
+
+      # === Secondary stats =============================================
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: sensor.tesla_tracker_distance_yesterday
+            name: Yesterday
+            icon: mdi:calendar-arrow-left
+          - type: entity
+            entity: sensor.tesla_tracker_distance_total
+            name: Lifetime
+            icon: mdi:counter
+          - type: entity
+            entity: sensor.tesla_tracker_drives_today
+            name: Drives today
+            icon: mdi:steering
+
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: sensor.tesla_tracker_duration_this_month
+            name: Time driven (month)
+            icon: mdi:timer-outline
+          - type: entity
+            entity: sensor.tesla_tracker_avg_distance_per_day_this_month
+            name: Avg / driving day
+            icon: mdi:chart-bell-curve
+          - type: entity
+            entity: sensor.tesla_tracker_longest_drive_this_month
+            name: Longest drive (month)
+            icon: mdi:map-marker-distance
+
+      # === Daily distance chart (stock statistics-graph) ================
+      # Uses HA long-term statistics from the distance sensors. Because the
+      # rolling-window sensors are state_class TOTAL, the per-day "change" is
+      # what you want here.
+      - type: statistics-graph
+        title: Daily distance (last 30 days)
+        period: day
+        chart_type: bar
+        days_to_show: 30
+        stat_types:
+          - change
+        entities:
+          - sensor.tesla_tracker_distance_today
+
+      # --- OPTIONAL: ApexCharts variant (requires HACS `apexcharts-card`) --
+      # Renders the `daily_series` attribute exposed on the weekly/monthly
+      # distance sensors directly, no statistics needed. Uncomment after
+      # installing apexcharts-card from HACS.
+      #
+      # - type: custom:apexcharts-card
+      #   header:
+      #     show: true
+      #     title: Daily distance (this month)
+      #   series:
+      #     - entity: sensor.tesla_tracker_distance_this_month
+      #       name: Distance
+      #       type: column
+      #       data_generator: |
+      #         return (entity.attributes.daily_series || []).map(d => {
+      #           return [new Date(d.date).getTime(), d.distance];
+      #         });
+
+      # === Recent drives table (stock markdown - works out of the box) ===
+      - type: markdown
+        title: Recent drives
+        content: >
+          {% set last = states.sensor.tesla_tracker_last_drive %}
+          {% set longest = states.sensor.tesla_tracker_longest_drive_this_month %}
+          {% if last %}
+          | Drive | Distance | From | To | Duration |
+          |---|---|---|---|---|
+          | Last | {{ states('sensor.tesla_tracker_last_drive') }}
+          {{- state_attr('sensor.tesla_tracker_last_drive','route') and '' }}
+          | {{ state_attr('sensor.tesla_tracker_last_drive','start') }}
+          | {{ state_attr('sensor.tesla_tracker_last_drive','end') }}
+          | {{ state_attr('sensor.tesla_tracker_last_drive','duration_min') }} min |
+          {% if longest and longest.state not in ['unknown','unavailable'] %}
+          | Longest (month) | {{ states('sensor.tesla_tracker_longest_drive_this_month') }}
+          | {{ state_attr('sensor.tesla_tracker_longest_drive_this_month','start') }}
+          | {{ state_attr('sensor.tesla_tracker_longest_drive_this_month','end') }}
+          | {{ state_attr('sensor.tesla_tracker_longest_drive_this_month','duration_min') }} min |
+          {% endif %}
+          {% else %}
+          No drives recorded yet.
+          {% endif %}
+
+      # --- OPTIONAL: scrollable full history (requires HACS) --------------
+      # Use `flex-table-card` + a template sensor that exposes a `drives`
+      # attribute (e.g. fed by the export service). See dashboards/README.md.
+      #
+      # - type: custom:flex-table-card
+      #   title: Drive history
+      #   entities:
+      #     include: sensor.tesla_tracker_last_drive
+      #   columns:
+      #     - name: Start
+      #       data: start
+      #     - name: Distance
+      #       data: state
+
+      # === Recent route map (stock) =====================================
+      # Replace device_tracker.tesla with your tesla_fleet tracker entity.
+      - type: map
+        title: Recent route
+        hours_to_show: 24
+        entities:
+          - device_tracker.tesla

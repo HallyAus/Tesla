@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a problem with the Dashcam Viewer or Tesla Tracker
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **Privacy reminder:** never paste Tesla tokens, Home Assistant secrets, or
+        personal location/video data into this issue. Redact anything sensitive.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which product is affected?
+      options:
+        - Dashcam Viewer
+        - Tesla Tracker
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: Describe the bug and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the problem?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Version / commit of the affected product.
+      placeholder: e.g. 0.1.0 or a git SHA
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Viewer: browser + OS. Tracker: Home Assistant version + install method (HACS / manual).
+      placeholder: |
+        - Viewer: Chrome 126 on macOS 14
+        - Tracker: Home Assistant 2024.6, installed via HACS
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Console output or Home Assistant logs. Redact tokens and secrets.
+      render: shell
+    validations:
+      required: false

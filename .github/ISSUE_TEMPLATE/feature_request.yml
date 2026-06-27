@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an idea or enhancement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for suggesting an improvement!
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which product is this request for?
+      options:
+        - Dashcam Viewer
+        - Tesla Tracker
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem would this solve? What are you trying to do?
+      placeholder: I'm frustrated when ...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or behavior you'd like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative solutions or workarounds you've considered.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, links, or anything else that helps.
+    validations:
+      required: false

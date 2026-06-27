@@ -1,0 +1,13 @@
+{
+  "domain": "tesla_tracker",
+  "name": "Tesla Tracker",
+  "codeowners": ["@HallyAus"],
+  "config_flow": true,
+  "dependencies": ["tesla_fleet"],
+  "documentation": "https://github.com/HallyAus/Tesla",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/HallyAus/Tesla/issues",
+  "quality_scale": "silver",
+  "version": "0.2.0"
+}

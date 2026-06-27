@@ -1,0 +1,38 @@
+name: Repo setup
+
+# One-shot maintenance workflow: point the default branch at main and
+# (optionally) make the repository public. Uses the in-Actions token, which
+# may lack admin scope under some org policies — each step degrades to a
+# warning rather than failing the run.
+on:
+  workflow_dispatch:
+    inputs:
+      make_public:
+        description: Set repository visibility to public
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  administration: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set default branch to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh repo edit "$GITHUB_REPOSITORY" --default-branch main \
+            && echo "Default branch set to main." \
+            || echo "::warning::Could not set default branch (token may lack admin). Set it in Settings → Branches."
+
+      - name: Make repository public
+        if: ${{ inputs.make_public }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh repo edit "$GITHUB_REPOSITORY" --visibility public --accept-visibility-change-consequences \
+            && echo "Repository is now public." \
+            || echo "::warning::Could not change visibility (token may lack admin). Flip it in Settings → General → Danger Zone."

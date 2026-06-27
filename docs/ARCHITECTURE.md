@@ -27,8 +27,8 @@ and long-term vehicle tracking).
 ## Product 1 — Dashcam Viewer
 
 ### Goal
-Re-create the core of [TesClip](https://tesclip.com/): open a `TeslaCam` folder and review events
-with all cameras synchronized, telemetry overlaid, and the route on a map — entirely client-side.
+Open a `TeslaCam` folder and review events with all cameras synchronized, telemetry overlaid,
+and the route on a map — entirely client-side.
 
 ### How Tesla stores footage
 A USB drive formatted for TeslaCam contains a `TeslaCam/` directory with three event buckets:

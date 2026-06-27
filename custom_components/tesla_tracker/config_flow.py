@@ -21,11 +21,13 @@ from .const import (
     CONF_MIN_DISTANCE,
     CONF_ODOMETER_ENTITY,
     CONF_SHIFT_ENTITY,
+    CONF_SHOW_PANEL,
     CONF_TRACKER_ENTITY,
     CONF_UNIT,
     DEFAULT_DAILY_RESET,
     DEFAULT_IDLE_GAP,
     DEFAULT_MIN_DISTANCE,
+    DEFAULT_SHOW_PANEL,
     DEFAULT_UNIT,
     DOMAIN,
     NAME,
@@ -39,10 +41,13 @@ UNIT_OPTIONS = [
 ]
 
 
-def _schema(defaults: dict[str, Any]) -> vol.Schema:
-    """Build the (re)usable form schema for both config and options flows."""
-    return vol.Schema(
-        {
+def _schema(defaults: dict[str, Any], *, include_panel: bool = False) -> vol.Schema:
+    """Build the (re)usable form schema for both config and options flows.
+
+    ``include_panel`` adds the "Show dashcam viewer panel" toggle (options flow
+    only).
+    """
+    fields: dict[Any, Any] = {
             vol.Required(
                 CONF_ODOMETER_ENTITY,
                 default=defaults.get(CONF_ODOMETER_ENTITY, vol.UNDEFINED),
@@ -97,8 +102,15 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
-        }
-    )
+    }
+    if include_panel:
+        fields[
+            vol.Required(
+                CONF_SHOW_PANEL,
+                default=defaults.get(CONF_SHOW_PANEL, DEFAULT_SHOW_PANEL),
+            )
+        ] = selector.BooleanSelector()
+    return vol.Schema(fields)
 
 
 def _validate(hass, user_input: dict[str, Any]) -> dict[str, str]:
@@ -168,5 +180,7 @@ class TeslaTrackerOptionsFlow(OptionsFlow):
             defaults = {**self.config_entry.data, **self.config_entry.options}
 
         return self.async_show_form(
-            step_id="init", data_schema=_schema(defaults), errors=errors
+            step_id="init",
+            data_schema=_schema(defaults, include_panel=True),
+            errors=errors,
         )

@@ -40,7 +40,11 @@
           "unit": "Distance unit",
           "daily_reset": "Daily reset time",
           "idle_gap": "Idle gap before a drive ends (seconds)",
-          "min_distance": "Minimum distance to count as a drive (km)"
+          "min_distance": "Minimum distance to count as a drive (km)",
+          "show_panel": "Show dashcam viewer panel"
+        },
+        "data_description": {
+          "show_panel": "Adds a local-first \"Dashcam Viewer\" item to the sidebar for reviewing TeslaCam / Sentry footage. Footage is read in your browser and never uploaded. The one-click folder picker needs HTTPS (e.g. Nabu Casa); drag-and-drop works on any connection."
         }
       }
     },

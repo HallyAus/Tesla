@@ -71,6 +71,29 @@ TeslaCam/
 Bundled sample event under `public/sample-clips/` → user clicks "Load sample" → synced grid plays,
 telemetry overlay renders, route map shows the event location.
 
+### Embedding inside Home Assistant (sidebar panel)
+The same static viewer is **bundled into the Tesla Tracker integration** so it appears as a
+**Dashcam Viewer** item (`mdi:cctv`) in the HA sidebar — without the two products coupling at
+runtime. The wiring is one-directional and build-time only:
+
+- `scripts/build_panel.sh` runs the viewer build (`npm run build`) and copies `dist/` into
+  `custom_components/tesla_tracker/panel/`. That bundle is **committed**, because HACS/HA cannot
+  run `npm`. Vite's `base: './'` makes every asset URL relative, so the bundle works from HA's
+  arbitrary static mount path.
+- The integration (`panel.py`) serves `panel/` via `hass.http.async_register_static_paths`
+  (`StaticPathConfig`, with a legacy `register_static_path` fallback) at `/tesla_tracker_panel`,
+  then registers an `iframe` built-in panel
+  (`frontend.async_register_built_in_panel(hass, "iframe", …)`) pointing at the served
+  `index.html`. Registration is **ref-counted** across config entries (one shared panel) and the
+  panel is removed via `async_remove_panel` when the last holder unloads. An options toggle
+  ("Show dashcam viewer panel", default on) lets users disable it.
+- **Secure-context caveat.** Because the panel is served **same-origin** from HA, the browser's
+  File System Access API works inside the iframe — but only in a **secure context** (HTTPS /
+  `localhost`, e.g. Nabu Casa Remote). On plain-HTTP LAN access the viewer auto-detects the
+  insecure context (`src/lib/teslacam/secureContext.ts`, a pure unit-tested helper) and promotes
+  **drag-and-drop** as the primary path with a friendly note. **Footage never leaves the
+  browser** in either path — there is no upload and no server round-trip for video.
+
 ---
 
 ## Product 2 — Tesla Tracker (Home Assistant)

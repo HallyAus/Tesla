@@ -6,6 +6,51 @@ and the **Tesla Tracker** Home Assistant integration follows
 [Semantic Versioning](https://semver.org/) (its version lives in
 `custom_components/tesla_tracker/manifest.json` and is what HACS installs).
 
+## [0.3.0] - 2026-06-27
+
+Embeds the local-first dashcam viewer inside Home Assistant as a sidebar panel.
+
+### Tesla Tracker (Home Assistant integration) — `0.3.0`
+- **Added**
+  - **Dashcam Viewer sidebar panel** (`mdi:cctv`). The integration serves the
+    prebuilt viewer bundle as same-origin static files and registers an `iframe`
+    built-in panel, so reviewing TeslaCam / Sentry footage is one click away from
+    inside HA. Footage is read entirely in the browser and never uploaded.
+  - Static files are mounted with `hass.http.async_register_static_paths`
+    (`StaticPathConfig`), falling back to the legacy `register_static_path` on
+    older cores. Panel registration is **ref-counted** so multiple config entries
+    share one panel; the panel is removed (`async_remove_panel`) when the last
+    entry unloads.
+  - Options-flow toggle **"Show dashcam viewer panel"** (default on) to disable it.
+  - Because the panel is served same-origin, the browser File System Access API
+    works inside the iframe when HA is on a secure context (HTTPS / localhost —
+    e.g. Nabu Casa Remote). On plain-HTTP LAN access the viewer auto-detects the
+    insecure context and makes drag-and-drop the primary path.
+- **Changed**
+  - `manifest.json` now depends on `http` and `frontend`.
+
+### Dashcam Viewer — `apps/dashcam-viewer`
+- **Added**
+  - Secure-context auto-detection (`src/lib/teslacam/secureContext.ts`, pure +
+    unit-tested): offers the native folder picker only in a secure context with
+    the File System Access API present; otherwise promotes drag-and-drop and shows
+    a friendly note that the one-click picker needs HTTPS. Footage stays local in
+    either path.
+- **Changed**
+  - Vite `base: './'` so the build works from HA's arbitrary static mount path
+    (relative `./assets/...` URLs in `index.html`).
+- Now covered by 77 unit tests (+4 secure-context tests).
+
+### Repository
+- **Added**
+  - `scripts/build_panel.sh` — builds the viewer and syncs `dist/` into
+    `custom_components/tesla_tracker/panel/` (committed so HACS ships a working
+    panel without running npm).
+  - Release workflow rebuilds the viewer and re-syncs `panel/` before tagging, so
+    the committed bundle can't go stale.
+
+[0.3.0]: https://github.com/HallyAus/Tesla/releases/tag/v0.3.0
+
 ## [0.2.0] - 2026-06-27
 
 First tagged release. Both products built and polished to release quality.

@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "apps/dashcam-viewer/**"
+      - "scripts/build_panel.sh"
       - ".github/workflows/viewer.yml"
   pull_request:
     paths:
       - "apps/dashcam-viewer/**"
+      - "scripts/build_panel.sh"
       - ".github/workflows/viewer.yml"
 
 permissions:
@@ -43,3 +45,15 @@ jobs:
 
       - name: Type-check
         run: npx tsc --noEmit
+
+      - name: Verify the HA panel bundle builds and uses relative asset paths
+        # The committed custom_components/tesla_tracker/panel/ bundle must build
+        # cleanly with relative (./assets/...) URLs so it works from HA's static
+        # mount. Hashed filenames change per build, so we assert relativity, not
+        # an exact diff. The release workflow re-syncs and commits the bundle.
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          bash scripts/build_panel.sh
+          grep -q './assets/' custom_components/tesla_tracker/panel/index.html
+          echo "Panel index.html references assets relatively."

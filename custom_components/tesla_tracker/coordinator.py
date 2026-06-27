@@ -26,13 +26,14 @@ from . import aggregation
 from .aggregation import Drive
 from .const import (
     CONF_IDLE_GAP,
+    CONF_MIN_DISTANCE,
     CONF_ODOMETER_ENTITY,
     CONF_SHIFT_ENTITY,
     CONF_TRACKER_ENTITY,
     CONF_UNIT,
     DEFAULT_IDLE_GAP,
+    DEFAULT_MIN_DISTANCE,
     DEFAULT_UNIT,
-    MIN_DRIVE_DISTANCE,
     UNIT_KM,
     UNIT_MI,
 )
@@ -73,9 +74,10 @@ class TeslaTrackerCoordinator:
         self.shift_entity: str | None = opts.get(CONF_SHIFT_ENTITY)
         self.unit: str = opts.get(CONF_UNIT, DEFAULT_UNIT)
         idle_gap = float(opts.get(CONF_IDLE_GAP, DEFAULT_IDLE_GAP))
+        min_distance = float(opts.get(CONF_MIN_DISTANCE, DEFAULT_MIN_DISTANCE))
 
         self.detector = DriveDetector(
-            idle_gap=idle_gap, min_distance=MIN_DRIVE_DISTANCE
+            idle_gap=idle_gap, min_distance=min_distance
         )
         self._unsub = None
         self._listeners: list = []
@@ -83,6 +85,11 @@ class TeslaTrackerCoordinator:
     # --- lifecycle ---------------------------------------------------------
     async def async_start(self) -> None:
         await self.store.async_load()
+        # Resume an in-progress drive captured before a restart (if any).
+        self.detector.resume(self.store.in_progress)
+        if self.store.in_progress is not None:
+            await self.store.async_set_in_progress(None)
+
         entities = [self.odometer_entity]
         if self.tracker_entity:
             entities.append(self.tracker_entity)
@@ -99,10 +106,10 @@ class TeslaTrackerCoordinator:
         if self._unsub:
             self._unsub()
             self._unsub = None
-        # Persist any in-flight drive on shutdown.
-        completed = self.detector.flush(dt_util.utcnow())
-        if completed:
-            await self.store.async_add(completed)
+        # Persist any in-flight drive so it resumes after a restart rather than
+        # being force-closed (which would split one trip into two).
+        snapshot = self.detector.snapshot()
+        await self.store.async_set_in_progress(snapshot)
 
     @callback
     def async_add_listener(self, update_callback) -> None:
@@ -194,3 +201,46 @@ class TeslaTrackerCoordinator:
     def last_drive(self) -> Drive | None:
         drives = self._converted(self.store.drives)
         return drives[-1] if drives else None
+
+    def _month_bounds(self):
+        now = dt_util.now()
+        return aggregation.period_bounds(aggregation.PERIOD_MONTH, now)
+
+    def avg_distance_per_day_month(self) -> float:
+        start, end = self._month_bounds()
+        return aggregation.avg_distance_per_driving_day(
+            self._converted(self.store.drives), start, end
+        )
+
+    def longest_drive_month(self) -> Drive | None:
+        start, end = self._month_bounds()
+        return aggregation.longest_drive(
+            self._converted(self.store.drives), start, end
+        )
+
+    # --- services ----------------------------------------------------------
+    async def async_recalculate(self) -> None:
+        """Re-derive nothing destructive; drives are the source of truth.
+
+        Rollups are computed on demand from stored drives, so recalculation
+        simply re-sorts/normalises the persisted list and notifies sensors so
+        any cached UI values refresh immediately.
+        """
+        drives = sorted(self.store.drives, key=lambda d: d.start)
+        await self.store.async_replace(drives)
+        self._notify()
+
+    async def async_clear_history(self) -> None:
+        """Wipe all stored drives (caller enforces confirmation)."""
+        await self.store.async_replace([])
+        self._notify()
+
+    def export_payload(self) -> dict:
+        """JSON-serialisable export of the full drive history."""
+        return {
+            "version": 1,
+            "unit": self.unit,
+            "exported_at": dt_util.now().isoformat(),
+            "drive_count": len(self.store.drives),
+            "drives": [d.to_dict() for d in self._converted(self.store.drives)],
+        }

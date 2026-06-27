@@ -50,13 +50,28 @@ def main() -> None:
     print(f"Reference now: {now.isoformat()}")
     print(f"Total drives in fixture: {len(drives)}\n")
 
-    for period in ("today", "yesterday", "week", "month"):
+    for period in ("today", "yesterday", "week", "month", "year", "total"):
         r = aggregation.rollup(drives, period, now)
         print(
             f"{period:<10} "
             f"distance={r.distance:8.2f}  "
             f"drives={r.drive_count:3d}  "
             f"duration={r.duration_s / 60:6.1f} min"
+        )
+
+    # New derived metrics for this month.
+    m_start, m_end = aggregation.period_bounds("month", now)
+    avg = aggregation.avg_distance_per_driving_day(drives, m_start, m_end)
+    days = aggregation.driving_days(drives, m_start, m_end)
+    longest = aggregation.longest_drive(drives, m_start, m_end)
+    print(
+        f"\nThis month: driving_days={days}  "
+        f"avg_per_driving_day={avg:.2f}"
+    )
+    if longest is not None:
+        print(
+            f"  longest drive: {longest.distance:.2f} "
+            f"({longest.start.isoformat()} -> {longest.end.isoformat()})"
         )
 
     print("\nThis-week per-day series:")

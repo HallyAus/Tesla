@@ -28,11 +28,17 @@ class DriveStore:
             STORAGE_KEY_TEMPLATE.format(entry_id=entry_id),
         )
         self._drives: list[Drive] = []
+        self._in_progress: dict | None = None
         self._loaded = False
 
     @property
     def drives(self) -> list[Drive]:
         return self._drives
+
+    @property
+    def in_progress(self) -> dict | None:
+        """Snapshot of an in-progress drive captured before the last restart."""
+        return self._in_progress
 
     async def async_load(self) -> list[Drive]:
         """Load drives from disk (idempotent)."""
@@ -43,6 +49,7 @@ class DriveStore:
             self._drives = [
                 Drive.from_dict(d) for d in raw.get("drives", [])
             ]
+            self._in_progress = raw.get("in_progress")
         self._loaded = True
         return self._drives
 
@@ -53,11 +60,22 @@ class DriveStore:
             self._drives = self._drives[-MAX_DRIVES:]
         await self.async_save()
 
+    async def async_set_in_progress(self, snapshot: dict | None) -> None:
+        """Persist (or clear) the in-progress drive snapshot."""
+        self._in_progress = snapshot
+        await self.async_save()
+
+    async def async_replace(self, drives: list[Drive]) -> None:
+        """Replace the full drive list (used by clear/recalculate)."""
+        self._drives = list(drives[-MAX_DRIVES:])
+        await self.async_save()
+
     async def async_save(self) -> None:
         await self._store.async_save(
             {
                 "version": STORAGE_VERSION,
                 "drives": [d.to_dict() for d in self._drives],
+                "in_progress": self._in_progress,
             }
         )
 

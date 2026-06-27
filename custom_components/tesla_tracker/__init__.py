@@ -10,6 +10,7 @@ from typing import TypeAlias
 
 from .const import DOMAIN
 from .coordinator import TeslaTrackerCoordinator
+from .services import async_register_services, async_unregister_services
 from .store import DriveStore
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
@@ -30,6 +31,7 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -44,6 +46,7 @@ async def async_unload_entry(
     )
     if coordinator is not None:
         await coordinator.async_stop()
+    async_unregister_services(hass)
     return unload_ok
 
 

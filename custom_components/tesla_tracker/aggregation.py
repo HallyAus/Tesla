@@ -22,8 +22,13 @@ __all__ = [
     "rollup_yesterday",
     "rollup_week",
     "rollup_month",
+    "rollup_year",
+    "rollup_total",
     "daily_series",
     "drives_in_window",
+    "longest_drive",
+    "avg_distance_per_driving_day",
+    "driving_days",
 ]
 
 # Period identifiers (kept local so this module needs no HA const import).
@@ -31,6 +36,8 @@ PERIOD_TODAY = "today"
 PERIOD_YESTERDAY = "yesterday"
 PERIOD_WEEK = "week"
 PERIOD_MONTH = "month"
+PERIOD_YEAR = "year"
+PERIOD_TOTAL = "total"
 
 
 @dataclass
@@ -153,6 +160,18 @@ def period_bounds(period: str, now: datetime) -> tuple[datetime, datetime]:
             nxt = start.replace(month=start.month + 1)
         return start, nxt
 
+    if period == PERIOD_YEAR:
+        start = datetime.combine(today.replace(month=1, day=1), time.min, tzinfo=tz)
+        nxt = start.replace(year=start.year + 1)
+        return start, nxt
+
+    if period == PERIOD_TOTAL:
+        # Open-ended history: from the epoch's dawn to "now+1s" so the current
+        # instant is always included by the half-open window.
+        start = datetime(1970, 1, 1, tzinfo=tz)
+        end = now + timedelta(seconds=1)
+        return start, end
+
     raise ValueError(f"Unknown period: {period!r}")
 
 
@@ -197,6 +216,11 @@ def daily_series(drives: Iterable[Drive], start: datetime, end: datetime) -> lis
     return series
 
 
+# Cap the per-day series so very long windows (year/total) don't build a huge
+# attribute payload. ~92 days comfortably covers a "last quarter" chart.
+MAX_SERIES_DAYS = 92
+
+
 def rollup(drives: Iterable[Drive], period: str, now: datetime) -> Rollup:
     """Generic rollup for any supported ``period`` at ``now``."""
     drives = list(drives)
@@ -208,8 +232,48 @@ def rollup(drives: Iterable[Drive], period: str, now: datetime) -> Rollup:
     result.drive_count = len(window)
     result.duration_s = sum(d.duration_s for d in window)
     # Per-day series only meaningful for multi-day periods, but harmless for day.
-    result.series = daily_series(drives, start, end)
+    # Bound the span so year/total don't produce an unwieldy attribute list:
+    # show the most recent MAX_SERIES_DAYS days of the window.
+    span_days = (end - start).days
+    series_start = start
+    if span_days > MAX_SERIES_DAYS:
+        series_start = end - timedelta(days=MAX_SERIES_DAYS)
+        series_start = datetime.combine(
+            series_start.date(), time.min, tzinfo=series_start.tzinfo
+        )
+    result.series = daily_series(drives, series_start, end)
     return result
+
+
+def driving_days(drives: Iterable[Drive], start: datetime, end: datetime) -> int:
+    """Number of distinct calendar days (in the window's tz) with >=1 drive."""
+    tz = start.tzinfo
+    days: set[date] = set()
+    for d in drives:
+        if start <= d.start < end:
+            days.add(d.start.astimezone(tz).date() if tz else d.start.date())
+    return len(days)
+
+
+def avg_distance_per_driving_day(
+    drives: Iterable[Drive], start: datetime, end: datetime
+) -> float:
+    """Average distance across days that actually had a drive (0 if none)."""
+    window = drives_in_window(list(drives), start, end)
+    days = driving_days(window, start, end)
+    if days == 0:
+        return 0.0
+    return sum(d.distance for d in window) / days
+
+
+def longest_drive(
+    drives: Iterable[Drive], start: datetime, end: datetime
+) -> Drive | None:
+    """The single drive with the greatest distance in the window (or None)."""
+    window = drives_in_window(list(drives), start, end)
+    if not window:
+        return None
+    return max(window, key=lambda d: d.distance)
 
 
 def rollup_today(drives: Iterable[Drive], now: datetime) -> Rollup:
@@ -226,3 +290,11 @@ def rollup_week(drives: Iterable[Drive], now: datetime) -> Rollup:
 
 def rollup_month(drives: Iterable[Drive], now: datetime) -> Rollup:
     return rollup(drives, PERIOD_MONTH, now)
+
+
+def rollup_year(drives: Iterable[Drive], now: datetime) -> Rollup:
+    return rollup(drives, PERIOD_YEAR, now)
+
+
+def rollup_total(drives: Iterable[Drive], now: datetime) -> Rollup:
+    return rollup(drives, PERIOD_TOTAL, now)

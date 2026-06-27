@@ -16,20 +16,33 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from homeassistant.const import UnitOfTime
+
 from . import TeslaTrackerConfigEntry
 from .const import (
     DOMAIN,
     NAME,
     PERIOD_MONTH,
     PERIOD_TODAY,
+    PERIOD_TOTAL,
     PERIOD_WEEK,
+    PERIOD_YEAR,
     PERIOD_YESTERDAY,
+    SENSOR_AVG_PER_DAY_MONTH,
     SENSOR_DISTANCE_MONTH,
     SENSOR_DISTANCE_TODAY,
+    SENSOR_DISTANCE_TOTAL,
     SENSOR_DISTANCE_WEEK,
+    SENSOR_DISTANCE_YEAR,
     SENSOR_DISTANCE_YESTERDAY,
+    SENSOR_DRIVES_MONTH,
     SENSOR_DRIVES_TODAY,
+    SENSOR_DRIVES_WEEK,
+    SENSOR_DURATION_MONTH,
+    SENSOR_DURATION_TODAY,
+    SENSOR_DURATION_WEEK,
     SENSOR_LAST_DRIVE,
+    SENSOR_LONGEST_DRIVE_MONTH,
     UNIT_MI,
 )
 from .coordinator import TeslaTrackerCoordinator
@@ -47,8 +60,47 @@ def _distance_value(period: str):
     return lambda c: round(c.rollup(period).distance, 2)
 
 
+def _duration_value(period: str):
+    # Minutes driven in the period.
+    return lambda c: round(c.rollup(period).duration_s / 60, 1)
+
+
 def _drive_count_value(period: str):
     return lambda c: c.rollup(period).drive_count
+
+
+def _series_attrs(period: str):
+    """Expose the per-day distance series for charting."""
+    def _fn(c: TeslaTrackerCoordinator) -> dict:
+        r = c.rollup(period)
+        return {
+            "period_start": r.start.isoformat(),
+            "period_end": r.end.isoformat(),
+            "daily_series": r.series,
+        }
+    return _fn
+
+
+def _avg_per_day_value(c: TeslaTrackerCoordinator):
+    return round(c.avg_distance_per_day_month(), 2)
+
+
+def _longest_drive_value(c: TeslaTrackerCoordinator):
+    d = c.longest_drive_month()
+    return round(d.distance, 2) if d else None
+
+
+def _longest_drive_attrs(c: TeslaTrackerCoordinator) -> dict:
+    d = c.longest_drive_month()
+    if d is None:
+        return {}
+    return {
+        "start": d.start.isoformat(),
+        "end": d.end.isoformat(),
+        "duration_min": round(d.duration_s / 60, 1),
+        "start_location": list(d.start_location) if d.start_location else None,
+        "end_location": list(d.end_location) if d.end_location else None,
+    }
 
 
 def _last_drive_value(c: TeslaTrackerCoordinator):
@@ -71,40 +123,86 @@ def _last_drive_attrs(c: TeslaTrackerCoordinator) -> dict:
     }
 
 
-def _distance_descriptions(unit_of_measurement):
+def _distance_desc(key, period, unit, *, total=True, series=False):
+    return TrackerSensorDescription(
+        key=key,
+        translation_key=key,
+        device_class=SensorDeviceClass.DISTANCE,
+        # TOTAL_INCREASING for the lifetime odometer-style total; TOTAL (which
+        # resets each period) for the rolling windows.
+        state_class=(
+            SensorStateClass.TOTAL_INCREASING if total else SensorStateClass.TOTAL
+        ),
+        native_unit_of_measurement=unit,
+        value_fn=_distance_value(period),
+        attrs_fn=_series_attrs(period) if series else None,
+    )
+
+
+def _distance_descriptions(unit):
+    return [
+        _distance_desc(SENSOR_DISTANCE_TODAY, PERIOD_TODAY, unit, total=False),
+        _distance_desc(
+            SENSOR_DISTANCE_YESTERDAY, PERIOD_YESTERDAY, unit, total=False
+        ),
+        _distance_desc(
+            SENSOR_DISTANCE_WEEK, PERIOD_WEEK, unit, total=False, series=True
+        ),
+        _distance_desc(
+            SENSOR_DISTANCE_MONTH, PERIOD_MONTH, unit, total=False, series=True
+        ),
+        _distance_desc(
+            SENSOR_DISTANCE_YEAR, PERIOD_YEAR, unit, total=False, series=True
+        ),
+        # Lifetime total -> TOTAL_INCREASING so HA treats it as a growing meter.
+        _distance_desc(SENSOR_DISTANCE_TOTAL, PERIOD_TOTAL, unit, total=True),
+    ]
+
+
+def _duration_descriptions():
+    mins = UnitOfTime.MINUTES
     return [
         TrackerSensorDescription(
-            key=SENSOR_DISTANCE_TODAY,
-            translation_key=SENSOR_DISTANCE_TODAY,
-            device_class=SensorDeviceClass.DISTANCE,
+            key=SENSOR_DURATION_TODAY,
+            translation_key=SENSOR_DURATION_TODAY,
+            device_class=SensorDeviceClass.DURATION,
             state_class=SensorStateClass.TOTAL,
-            native_unit_of_measurement=unit_of_measurement,
-            value_fn=_distance_value(PERIOD_TODAY),
+            native_unit_of_measurement=mins,
+            value_fn=_duration_value(PERIOD_TODAY),
         ),
         TrackerSensorDescription(
-            key=SENSOR_DISTANCE_YESTERDAY,
-            translation_key=SENSOR_DISTANCE_YESTERDAY,
-            device_class=SensorDeviceClass.DISTANCE,
+            key=SENSOR_DURATION_WEEK,
+            translation_key=SENSOR_DURATION_WEEK,
+            device_class=SensorDeviceClass.DURATION,
             state_class=SensorStateClass.TOTAL,
-            native_unit_of_measurement=unit_of_measurement,
-            value_fn=_distance_value(PERIOD_YESTERDAY),
+            native_unit_of_measurement=mins,
+            value_fn=_duration_value(PERIOD_WEEK),
         ),
         TrackerSensorDescription(
-            key=SENSOR_DISTANCE_WEEK,
-            translation_key=SENSOR_DISTANCE_WEEK,
-            device_class=SensorDeviceClass.DISTANCE,
+            key=SENSOR_DURATION_MONTH,
+            translation_key=SENSOR_DURATION_MONTH,
+            device_class=SensorDeviceClass.DURATION,
             state_class=SensorStateClass.TOTAL,
-            native_unit_of_measurement=unit_of_measurement,
-            value_fn=_distance_value(PERIOD_WEEK),
+            native_unit_of_measurement=mins,
+            value_fn=_duration_value(PERIOD_MONTH),
         ),
-        TrackerSensorDescription(
-            key=SENSOR_DISTANCE_MONTH,
-            translation_key=SENSOR_DISTANCE_MONTH,
-            device_class=SensorDeviceClass.DISTANCE,
+    ]
+
+
+def _count_descriptions():
+    def _count(key, period):
+        return TrackerSensorDescription(
+            key=key,
+            translation_key=key,
             state_class=SensorStateClass.TOTAL,
-            native_unit_of_measurement=unit_of_measurement,
-            value_fn=_distance_value(PERIOD_MONTH),
-        ),
+            native_unit_of_measurement="drives",
+            value_fn=_drive_count_value(period),
+        )
+
+    return [
+        _count(SENSOR_DRIVES_TODAY, PERIOD_TODAY),
+        _count(SENSOR_DRIVES_WEEK, PERIOD_WEEK),
+        _count(SENSOR_DRIVES_MONTH, PERIOD_MONTH),
     ]
 
 
@@ -124,13 +222,27 @@ async def async_setup_entry(
     descriptions: list[TrackerSensorDescription] = list(
         _distance_descriptions(unit)
     )
+    descriptions.extend(_duration_descriptions())
+    descriptions.extend(_count_descriptions())
     descriptions.append(
         TrackerSensorDescription(
-            key=SENSOR_DRIVES_TODAY,
-            translation_key=SENSOR_DRIVES_TODAY,
-            state_class=SensorStateClass.TOTAL,
-            native_unit_of_measurement="drives",
-            value_fn=_drive_count_value(PERIOD_TODAY),
+            key=SENSOR_AVG_PER_DAY_MONTH,
+            translation_key=SENSOR_AVG_PER_DAY_MONTH,
+            device_class=SensorDeviceClass.DISTANCE,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=unit,
+            value_fn=_avg_per_day_value,
+        )
+    )
+    descriptions.append(
+        TrackerSensorDescription(
+            key=SENSOR_LONGEST_DRIVE_MONTH,
+            translation_key=SENSOR_LONGEST_DRIVE_MONTH,
+            device_class=SensorDeviceClass.DISTANCE,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=unit,
+            value_fn=_longest_drive_value,
+            attrs_fn=_longest_drive_attrs,
         )
     )
     descriptions.append(
@@ -138,6 +250,7 @@ async def async_setup_entry(
             key=SENSOR_LAST_DRIVE,
             translation_key=SENSOR_LAST_DRIVE,
             device_class=SensorDeviceClass.DISTANCE,
+            state_class=SensorStateClass.MEASUREMENT,
             native_unit_of_measurement=unit,
             value_fn=_last_drive_value,
             attrs_fn=_last_drive_attrs,

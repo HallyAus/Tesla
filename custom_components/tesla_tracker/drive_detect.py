@@ -52,6 +52,53 @@ class _ActiveDrive:
     last_odo: float | None
     last_loc: tuple[float, float] | None
     route: list[tuple[float, float]] = field(default_factory=list)
+    # Accumulated, glitch-filtered odometer distance. Used as the authoritative
+    # distance so a mid-drive rollback/spike can't corrupt the total.
+    distance: float = 0.0
+
+    def to_dict(self) -> dict:
+        """JSON-friendly snapshot for persisting an in-progress drive."""
+        return {
+            "start_ts": self.start_ts.isoformat(),
+            "start_odo": self.start_odo,
+            "start_loc": list(self.start_loc) if self.start_loc else None,
+            "last_move_ts": self.last_move_ts.isoformat(),
+            "last_odo": self.last_odo,
+            "last_loc": list(self.last_loc) if self.last_loc else None,
+            "route": [list(p) for p in self.route],
+            "distance": self.distance,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "_ActiveDrive":
+        from datetime import datetime as _dt
+
+        def _loc(v):
+            return tuple(v) if v else None
+
+        return cls(
+            start_ts=_dt.fromisoformat(data["start_ts"]),
+            start_odo=data.get("start_odo"),
+            start_loc=_loc(data.get("start_loc")),
+            last_move_ts=_dt.fromisoformat(data["last_move_ts"]),
+            last_odo=data.get("last_odo"),
+            last_loc=_loc(data.get("last_loc")),
+            route=[tuple(p) for p in data.get("route", [])],
+            distance=float(data.get("distance", 0.0)),
+        )
+
+
+def _haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Great-circle distance between two ``(lat, lon)`` points in metres."""
+    from math import asin, cos, radians, sin, sqrt
+
+    lat1, lon1 = a
+    lat2, lon2 = b
+    rlat1, rlat2 = radians(lat1), radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    h = sin(dlat / 2) ** 2 + cos(rlat1) * cos(rlat2) * sin(dlon / 2) ** 2
+    return 2 * 6371000.0 * asin(min(1.0, sqrt(h)))
 
 
 @dataclass
@@ -63,11 +110,17 @@ class DriveDetector:
     idle_gap : seconds with no movement before a drive auto-closes.
     min_distance : minimum odometer delta (source units) to keep a drive.
     move_epsilon : odometer delta (source units) treated as "moving".
+    gps_jitter_m : positional changes smaller than this (metres) are treated as
+        GPS noise, not movement.
+    odo_glitch : an odometer *increase* larger than this in a single step is
+        treated as a sensor glitch and ignored (distance not credited).
     """
 
     idle_gap: float = 300.0
     min_distance: float = 0.05
     move_epsilon: float = 0.01
+    gps_jitter_m: float = 25.0
+    odo_glitch: float = 500.0
 
     _active: _ActiveDrive | None = field(default=None, init=False)
 
@@ -75,20 +128,41 @@ class DriveDetector:
     def in_drive(self) -> bool:
         return self._active is not None
 
+    def _odo_delta(self, sample: Sample) -> float | None:
+        """Sanitised odometer delta vs the last reading.
+
+        Returns the credited delta (>= 0), or ``None`` when there is no usable
+        reading. Negative deltas (rollback / counter reset) yield 0.0 and
+        implausibly large positive jumps (glitch) yield 0.0 so they are ignored
+        for distance and movement.
+        """
+        if (
+            self._active is None
+            or sample.odometer is None
+            or self._active.last_odo is None
+        ):
+            return None
+        delta = sample.odometer - self._active.last_odo
+        if delta < 0:
+            # Rollback / glitch: ignore, don't subtract.
+            return 0.0
+        if delta > self.odo_glitch:
+            # Implausible jump: treat as a spike, credit nothing.
+            return 0.0
+        return delta
+
     def _is_moving(self, sample: Sample) -> bool:
         if self._active is None:
             return False
-        if (
-            sample.odometer is not None
-            and self._active.last_odo is not None
-            and abs(sample.odometer - self._active.last_odo) >= self.move_epsilon
-        ):
+        delta = self._odo_delta(sample)
+        if delta is not None and delta >= self.move_epsilon:
             return True
-        # Position change as a fallback movement signal.
+        # Position change as a fallback movement signal, but filter GPS jitter.
         if (
             sample.location is not None
             and self._active.last_loc is not None
-            and sample.location != self._active.last_loc
+            and _haversine_m(sample.location, self._active.last_loc)
+            >= self.gps_jitter_m
         ):
             return True
         return False
@@ -111,20 +185,22 @@ class DriveDetector:
             return None
 
         end_ts = end_sample.ts if end_sample else active.last_move_ts
-        end_odo = (
-            end_sample.odometer
-            if end_sample and end_sample.odometer is not None
-            else active.last_odo
-        )
         end_loc = (
             end_sample.location
             if end_sample and end_sample.location is not None
             else active.last_loc
         )
 
-        distance = 0.0
-        if active.start_odo is not None and end_odo is not None:
-            distance = max(0.0, end_odo - active.start_odo)
+        # Credit any final sanitised step the end sample carries.
+        distance = active.distance
+        if (
+            end_sample is not None
+            and end_sample.odometer is not None
+            and active.last_odo is not None
+        ):
+            step = end_sample.odometer - active.last_odo
+            if 0 <= step <= self.odo_glitch:
+                distance += step
 
         if distance < self.min_distance:
             return None
@@ -163,6 +239,9 @@ class DriveDetector:
         if shift in PARK_GEARS:
             return self._finish(sample)
 
+        # Credit the sanitised (rollback/glitch-filtered) odometer delta.
+        delta = self._odo_delta(sample)
+
         moving = self._is_moving(sample)
         if moving:
             self._active.last_move_ts = sample.ts
@@ -179,6 +258,10 @@ class DriveDetector:
                 if shift in DRIVING_GEARS:
                     self._start(sample)
                 return completed
+
+        # Accumulate distance from the sanitised delta (ignores rollback/spike).
+        if delta is not None:
+            self._active.distance += delta
 
         # Always advance the "last" trackers so deltas are incremental.
         if sample.odometer is not None:
@@ -215,3 +298,19 @@ class DriveDetector:
             return None
         return self._finish(Sample(ts=now, odometer=self._active.last_odo,
                                    location=self._active.last_loc))
+
+    # --- restart-resume support -------------------------------------------
+    def snapshot(self) -> dict | None:
+        """Serialise any in-progress drive so it survives a restart."""
+        if self._active is None:
+            return None
+        return self._active.to_dict()
+
+    def resume(self, data: dict | None) -> None:
+        """Restore an in-progress drive captured by :meth:`snapshot`.
+
+        Safe to call with ``None`` (no-op). Replaces any current active drive.
+        """
+        if not data:
+            return
+        self._active = _ActiveDrive.from_dict(data)

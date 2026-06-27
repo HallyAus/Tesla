@@ -1,0 +1,38 @@
+# Tesla Tracker services
+recalculate:
+  name: Recalculate
+  description: >-
+    Rebuild rollups from the stored drive history. Drives are the source of
+    truth, so this normalises and re-sorts the persisted list and refreshes all
+    sensors immediately.
+
+export_drives:
+  name: Export drives
+  description: >-
+    Write the full drive history (with routes) to a JSON file in the Home
+    Assistant configuration directory.
+  fields:
+    filename:
+      name: Filename
+      description: >-
+        Target filename, relative to the config directory. The path must be
+        allowed for writing.
+      required: false
+      default: tesla_tracker_drives.json
+      example: tesla_tracker_drives.json
+      selector:
+        text:
+
+clear_history:
+  name: Clear history
+  description: >-
+    Permanently delete all stored drives. This cannot be undone. You must set
+    "confirm" to true for the deletion to proceed.
+  fields:
+    confirm:
+      name: Confirm
+      description: Must be true to actually clear the history.
+      required: true
+      default: false
+      selector:
+        boolean:

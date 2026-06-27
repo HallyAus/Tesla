@@ -1,0 +1,132 @@
+# Tesla Tracker
+
+A Home Assistant custom integration that turns the data from the official
+[`tesla_fleet`](https://www.home-assistant.io/integrations/tesla_fleet/)
+integration into **daily / weekly / monthly / yearly km, drive and route
+tracking** - with long-term-statistics-friendly sensors, drive detection, route
+capture, services and a ready-made dashboard.
+
+> Tesla Tracker does **not** talk to Tesla directly. It is a pure analytics
+> layer on top of `tesla_fleet`, which must be installed and working first.
+
+## What it does
+
+- Detects individual **drives** from your vehicle's odometer / shift / location,
+  with robust handling of sensor glitches and restarts.
+- Records each drive's distance, duration, start/end location and **route
+  polyline**.
+- Aggregates drives into **rollups**: today, yesterday, this week, this month,
+  this year and lifetime total.
+- Exposes everything as sensors that work with Home Assistant **long-term
+  statistics** and charts.
+
+## Requirements
+
+1. **Set up the `tesla_fleet` integration first.** You need working entities for
+   at least the odometer; a device tracker (location) and a shift-state sensor
+   improve accuracy and enable route capture.
+2. Home Assistant 2024.1+ (uses `runtime_data` config entries).
+
+## Install (HACS)
+
+1. In HACS, add this repository as a **custom repository** (category:
+   Integration), or install it if it is published to the default store.
+2. Install **Tesla Tracker** and restart Home Assistant.
+3. Go to **Settings -> Devices & Services -> Add Integration -> Tesla Tracker**.
+
+Manual install: copy `custom_components/tesla_tracker/` into your HA
+`config/custom_components/` directory and restart.
+
+## Configuration
+
+The config flow asks for:
+
+| Field | Required | Notes |
+|---|---|---|
+| Odometer sensor | yes | Numeric, in kilometres. Primary distance source. |
+| Location / device tracker | yes | For route capture and end-of-drive location. |
+| Shift state sensor | no | Park/Drive gear gives the most accurate drive boundaries. |
+| Distance unit | yes | km or mi (odometer assumed km; mi is converted). |
+| Daily reset time | yes | When the "today" window rolls over. |
+| Idle gap (s) | yes | Stationary time before a drive is considered finished. |
+| Minimum distance (km) | yes | Drives shorter than this are discarded as noise. |
+
+All settings can be changed later via the integration's **Configure** (options)
+button. Selected entities are validated; you'll get a friendly error if an
+entity can't be found.
+
+## Sensors
+
+Distance (device_class `distance`, statistics-friendly):
+
+- `distance_today`, `distance_yesterday`, `distance_this_week`,
+  `distance_this_month`, `distance_this_year` - `state_class: total`.
+  Week / month / year also expose a `daily_series` attribute for charting.
+- `distance_total` - lifetime, `state_class: total_increasing`.
+
+Drive counts: `drives_today`, `drives_this_week`, `drives_this_month`.
+
+Time driven (minutes, device_class `duration`): `duration_today`,
+`duration_this_week`, `duration_this_month`.
+
+Derived: `avg_distance_per_day_this_month`, `longest_drive_this_month` (with
+start/end/duration/location attributes), `last_drive` (distance + full route
+attribute).
+
+## Services
+
+| Service | Purpose |
+|---|---|
+| `tesla_tracker.recalculate` | Rebuild rollups from stored drives and refresh sensors. |
+| `tesla_tracker.export_drives` | Write the full drive history (with routes) to a JSON file in the config directory. Optional `filename`. |
+| `tesla_tracker.clear_history` | Permanently delete all stored drives. Requires `confirm: true`. |
+
+## Diagnostics
+
+The integration provides config-entry diagnostics (Settings -> Devices &
+Services -> Tesla Tracker -> Download diagnostics) with drive counts, detector
+settings, last-update info and in-progress state. Tokens and GPS coordinates are
+redacted.
+
+## Dashboard
+
+A polished Lovelace dashboard ships in
+[`dashboards/tesla_tracker_dashboard.yaml`](../../dashboards/) with a KPI glance
+row, a daily-distance chart, a recent-drives table and a route map - all using
+stock cards, with optional ApexCharts / flex-table-card upgrades. See
+`dashboards/README.md` for install steps.
+
+## Drive detection
+
+A drive is **active** when the shift gear is R/N/D, or (when no shift sensor is
+configured) when the odometer or position is moving beyond a threshold. A drive
+**ends** on Park, or after the configured idle gap with no movement. The detector
+is hardened against:
+
+- **Odometer rollback / counter resets** - negative deltas are ignored, never
+  subtracted.
+- **Odometer spikes** - implausibly large single jumps are discarded.
+- **GPS jitter** - positional wobble under ~25 m does not count as movement.
+- **Restart mid-drive** - an in-progress drive is snapshotted and resumed after
+  a restart instead of being split in two.
+
+The detection and aggregation logic lives in pure, HA-free modules
+(`drive_detect.py`, `aggregation.py`) and is covered by a plain-`pytest` suite.
+
+## Privacy
+
+All drive and route history is stored **locally** in Home Assistant's storage
+(`.storage/`). Nothing is sent to any external service by this integration.
+Diagnostics redact coordinates; the export service writes only to the local
+config directory.
+
+## Known limitations
+
+- Distance accuracy depends on the granularity of `tesla_fleet`'s odometer
+  polling. Between samples the route is a straight-line approximation.
+- The odometer is assumed to report kilometres; miles output is a conversion.
+- The per-day `daily_series` attribute is capped at ~92 days for year/total
+  sensors to keep attribute payloads small. Use long-term statistics for older
+  history.
+- Drives are bounded to the configured idle gap; a long mid-trip stop beyond
+  that gap is recorded as two separate drives.

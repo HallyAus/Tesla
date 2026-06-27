@@ -187,3 +187,120 @@ def test_helpers_match_generic():
         aggregation.rollup_month(drives, now).drive_count
         == aggregation.rollup(drives, "month", now).drive_count
     )
+
+
+# --- year / total -----------------------------------------------------------
+
+def test_year_bounds():
+    now = datetime(2025, 6, 15, 13, 30, tzinfo=UTC)
+    start, end = aggregation.period_bounds("year", now)
+    assert start == datetime(2025, 1, 1, 0, 0, tzinfo=UTC)
+    assert end == datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
+
+
+def test_year_excludes_prior_year():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    drives = [
+        mk(datetime(2024, 12, 31, 8, 0, tzinfo=UTC), 50.0),  # last year
+        mk(datetime(2025, 1, 3, 8, 0, tzinfo=UTC), 10.0),    # this year
+        mk(datetime(2025, 1, 15, 8, 0, tzinfo=UTC), 7.0),    # this year
+    ]
+    year = aggregation.rollup(drives, "year", now)
+    assert year.drive_count == 2
+    assert year.distance == 17.0
+
+
+def test_total_includes_everything():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    drives = [
+        mk(datetime(2020, 5, 1, 8, 0, tzinfo=UTC), 100.0),
+        mk(datetime(2024, 12, 31, 8, 0, tzinfo=UTC), 50.0),
+        mk(datetime(2025, 1, 15, 8, 0, tzinfo=UTC), 7.0),
+    ]
+    total = aggregation.rollup(drives, "total", now)
+    assert total.drive_count == 3
+    assert total.distance == 157.0
+
+
+def test_total_includes_drive_at_now():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    drives = [mk(now, 5.0)]  # starts exactly at "now"
+    total = aggregation.rollup(drives, "total", now)
+    assert total.drive_count == 1
+
+
+def test_total_series_is_bounded():
+    # A drive years ago plus one today: series must be capped, not thousands.
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    drives = [
+        mk(datetime(2020, 1, 1, 8, 0, tzinfo=UTC), 10.0),
+        mk(datetime(2025, 1, 15, 8, 0, tzinfo=UTC), 7.0),
+    ]
+    total = aggregation.rollup(drives, "total", now)
+    assert len(total.series) <= aggregation.MAX_SERIES_DAYS + 1
+    # The recent drive still shows in the bounded series.
+    assert any(s["date"] == "2025-01-15" and s["distance"] == 7.0
+               for s in total.series)
+
+
+def test_rollup_year_helper():
+    drives, now = load_fixture()
+    assert (
+        aggregation.rollup_year(drives, now).drive_count
+        == aggregation.rollup(drives, "year", now).drive_count
+    )
+    assert (
+        aggregation.rollup_total(drives, now).drive_count == len(drives)
+    )
+
+
+# --- driving days / averages / longest --------------------------------------
+
+def test_driving_days_counts_distinct_days():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    start, end = aggregation.period_bounds("month", now)
+    drives = [
+        mk(datetime(2025, 1, 3, 8, 0, tzinfo=UTC), 10.0),
+        mk(datetime(2025, 1, 3, 18, 0, tzinfo=UTC), 5.0),   # same day
+        mk(datetime(2025, 1, 10, 8, 0, tzinfo=UTC), 7.0),
+    ]
+    assert aggregation.driving_days(drives, start, end) == 2
+
+
+def test_avg_distance_per_driving_day():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    start, end = aggregation.period_bounds("month", now)
+    drives = [
+        mk(datetime(2025, 1, 3, 8, 0, tzinfo=UTC), 10.0),
+        mk(datetime(2025, 1, 3, 18, 0, tzinfo=UTC), 6.0),   # day1 total 16
+        mk(datetime(2025, 1, 10, 8, 0, tzinfo=UTC), 4.0),   # day2 total 4
+    ]
+    # (16 + 4) / 2 days = 10.0
+    assert aggregation.avg_distance_per_driving_day(drives, start, end) == 10.0
+
+
+def test_avg_distance_per_driving_day_empty_is_zero():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    start, end = aggregation.period_bounds("month", now)
+    assert aggregation.avg_distance_per_driving_day([], start, end) == 0.0
+
+
+def test_longest_drive_picks_max():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    start, end = aggregation.period_bounds("month", now)
+    big = mk(datetime(2025, 1, 8, 8, 0, tzinfo=UTC), 99.0)
+    drives = [
+        mk(datetime(2025, 1, 3, 8, 0, tzinfo=UTC), 10.0),
+        big,
+        mk(datetime(2025, 1, 10, 8, 0, tzinfo=UTC), 20.0),
+        mk(datetime(2024, 12, 30, 8, 0, tzinfo=UTC), 200.0),  # out of window
+    ]
+    longest = aggregation.longest_drive(drives, start, end)
+    assert longest is big
+    assert longest.distance == 99.0
+
+
+def test_longest_drive_none_when_empty():
+    now = datetime(2025, 1, 15, 12, 0, tzinfo=UTC)
+    start, end = aggregation.period_bounds("month", now)
+    assert aggregation.longest_drive([], start, end) is None

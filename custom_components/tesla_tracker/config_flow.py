@@ -18,12 +18,14 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_DAILY_RESET,
     CONF_IDLE_GAP,
+    CONF_MIN_DISTANCE,
     CONF_ODOMETER_ENTITY,
     CONF_SHIFT_ENTITY,
     CONF_TRACKER_ENTITY,
     CONF_UNIT,
     DEFAULT_DAILY_RESET,
     DEFAULT_IDLE_GAP,
+    DEFAULT_MIN_DISTANCE,
     DEFAULT_UNIT,
     DOMAIN,
     NAME,
@@ -83,8 +85,35 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                     mode=selector.NumberSelectorMode.BOX,
                 )
             ),
+            vol.Required(
+                CONF_MIN_DISTANCE,
+                default=defaults.get(CONF_MIN_DISTANCE, DEFAULT_MIN_DISTANCE),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=10,
+                    step=0.05,
+                    unit_of_measurement="km",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
         }
     )
+
+
+def _validate(hass, user_input: dict[str, Any]) -> dict[str, str]:
+    """Return a mapping of field -> error key for any invalid selections."""
+    errors: dict[str, str] = {}
+    odo = user_input.get(CONF_ODOMETER_ENTITY)
+    if odo and hass.states.get(odo) is None:
+        errors[CONF_ODOMETER_ENTITY] = "entity_not_found"
+    tracker = user_input.get(CONF_TRACKER_ENTITY)
+    if tracker and hass.states.get(tracker) is None:
+        errors[CONF_TRACKER_ENTITY] = "entity_not_found"
+    shift = user_input.get(CONF_SHIFT_ENTITY)
+    if shift and hass.states.get(shift) is None:
+        errors[CONF_SHIFT_ENTITY] = "entity_not_found"
+    return errors
 
 
 class TeslaTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -95,15 +124,20 @@ class TeslaTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            await self.async_set_unique_id(
-                f"{DOMAIN}_{user_input[CONF_ODOMETER_ENTITY]}"
-            )
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(title=NAME, data=user_input)
+            errors = _validate(self.hass, user_input)
+            if not errors:
+                await self.async_set_unique_id(
+                    f"{DOMAIN}_{user_input[CONF_ODOMETER_ENTITY]}"
+                )
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(title=NAME, data=user_input)
 
         return self.async_show_form(
-            step_id="user", data_schema=_schema({})
+            step_id="user",
+            data_schema=_schema(user_input or {}),
+            errors=errors,
         )
 
     @staticmethod
@@ -123,11 +157,16 @@ class TeslaTrackerOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            errors = _validate(self.hass, user_input)
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
+            defaults = user_input
+        else:
+            # Options override data; fall back to the original config entry data.
+            defaults = {**self.config_entry.data, **self.config_entry.options}
 
-        # Options override data; fall back to the original config entry data.
-        defaults = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
-            step_id="init", data_schema=_schema(defaults)
+            step_id="init", data_schema=_schema(defaults), errors=errors
         )

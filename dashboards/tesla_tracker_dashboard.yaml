@@ -1,0 +1,93 @@
+# Tesla Tracker — Lovelace dashboard
+#
+# Import this as a new dashboard (Settings > Dashboards > Add > "Edit in YAML"),
+# or paste individual cards. Entity IDs assume the default device/entity naming
+# `sensor.tesla_tracker_*`; adjust if you renamed the device.
+#
+# Stock cards only, EXCEPT where noted:
+#   * The drives-history table below uses a `markdown` card (stock) reading the
+#     `last_drive` attributes. For a full scrollable history table consider the
+#     custom `auto-entities` + `flex-table-card` (HACS) — example commented out.
+#   * The `map` card is stock and renders the device_tracker's recent path.
+
+title: Tesla Tracker
+views:
+  - title: Overview
+    path: tesla-tracker
+    icon: mdi:car-electric
+    cards:
+      # --- Distance summary (today / week / month) ----------------------
+      - type: glance
+        title: Distance
+        columns: 3
+        entities:
+          - entity: sensor.tesla_tracker_distance_today
+            name: Today
+          - entity: sensor.tesla_tracker_distance_this_week
+            name: This week
+          - entity: sensor.tesla_tracker_distance_this_month
+            name: This month
+
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: sensor.tesla_tracker_distance_yesterday
+            name: Yesterday
+            icon: mdi:calendar-arrow-left
+          - type: entity
+            entity: sensor.tesla_tracker_drives_today
+            name: Drives today
+            icon: mdi:steering
+
+      # --- Long-term history (uses HA statistics from TOTAL sensors) -----
+      - type: statistics-graph
+        title: Daily distance (last 30 days)
+        period: day
+        chart_type: bar
+        stat_types:
+          - state
+        entities:
+          - sensor.tesla_tracker_distance_today
+
+      # --- Last drive detail --------------------------------------------
+      - type: markdown
+        title: Last drive
+        content: >
+          {% set s = states.sensor.tesla_tracker_last_drive %}
+          {% if s %}
+          **Distance:** {{ states('sensor.tesla_tracker_last_drive') }}
+          {{ state_attr('sensor.tesla_tracker_last_drive','route') and '' }}
+
+          **From:** {{ state_attr('sensor.tesla_tracker_last_drive','start') }}
+
+          **To:** {{ state_attr('sensor.tesla_tracker_last_drive','end') }}
+
+          **Duration:** {{ state_attr('sensor.tesla_tracker_last_drive','duration_min') }} min
+
+          **Route points:** {{ state_attr('sensor.tesla_tracker_last_drive','route_points') }}
+          {% else %}
+          No drives recorded yet.
+          {% endif %}
+
+      # --- Recent route map ---------------------------------------------
+      # Replace device_tracker.tesla below with your tesla_fleet tracker entity.
+      - type: map
+        title: Recent route
+        hours_to_show: 24
+        entities:
+          - device_tracker.tesla
+
+      # --- Optional: full drive-history table (requires HACS cards) ------
+      # Uncomment after installing `flex-table-card` from HACS. The tracker's
+      # per-drive history lives in the integration store; surface it via a
+      # template sensor that exposes a `drives` attribute if you want a table.
+      #
+      # - type: custom:flex-table-card
+      #   title: Drive history
+      #   entities:
+      #     include: sensor.tesla_tracker_last_drive
+      #   columns:
+      #     - name: Start
+      #       data: start
+      #     - name: Distance
+      #       data: state

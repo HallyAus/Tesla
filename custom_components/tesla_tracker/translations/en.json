@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tesla Tracker",
+        "description": "Pick the source entities from your Tesla Fleet integration and choose your tracking preferences.",
+        "data": {
+          "odometer_entity": "Odometer sensor",
+          "tracker_entity": "Location / device tracker",
+          "shift_entity": "Shift state sensor (optional)",
+          "unit": "Distance unit",
+          "daily_reset": "Daily reset time",
+          "idle_gap": "Idle gap before a drive ends (seconds)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This odometer entity is already being tracked."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tesla Tracker options",
+        "data": {
+          "odometer_entity": "Odometer sensor",
+          "tracker_entity": "Location / device tracker",
+          "shift_entity": "Shift state sensor (optional)",
+          "unit": "Distance unit",
+          "daily_reset": "Daily reset time",
+          "idle_gap": "Idle gap before a drive ends (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "distance_today": { "name": "Distance today" },
+      "distance_yesterday": { "name": "Distance yesterday" },
+      "distance_this_week": { "name": "Distance this week" },
+      "distance_this_month": { "name": "Distance this month" },
+      "drives_today": { "name": "Drives today" },
+      "last_drive": { "name": "Last drive" }
+    }
+  }
+}

@@ -61,3 +61,15 @@ export function trackForCamera(
 ): CameraTrack | undefined {
   return event.tracks.find((t) => t.camera === camera);
 }
+
+/** Build the timeline segments (offset + duration) for an event's video tracks. */
+export function timelineSegmentsFor(
+  event: PlayableEvent,
+): Array<{ startSec: number; durationSec: number }> {
+  const vid = event.tracks.find((t) => t.kind === 'video' && t.segments);
+  if (!vid?.segments) return [];
+  return vid.segments.map((s) => ({
+    startSec: s.startSec,
+    durationSec: s.durationSec,
+  }));
+}

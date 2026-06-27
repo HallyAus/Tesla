@@ -78,6 +78,15 @@ export function generateTelemetry(
   return { samples, durationSec };
 }
 
+/** Whether the user prefers reduced motion (guards the demo animation). */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 /** Draw one procedural camera frame for `eventTimeSec` onto `ctx`. */
 function drawCameraFrame(
   camera: CameraName,
@@ -85,9 +94,13 @@ function drawCameraFrame(
   eventTimeSec: number,
   width: number,
   height: number,
+  reducedMotion: boolean,
 ): void {
   const style = CAMERA_STYLE[camera];
-  const t = eventTimeSec;
+  // When the user prefers reduced motion, freeze the moving scene at a fixed
+  // pose so the tiles still render (and the live timestamp still ticks) but
+  // nothing visually slides/scrolls.
+  const t = reducedMotion ? 0 : eventTimeSec;
 
   // Sky / ground split with a per-camera tint.
   const horizon = height * 0.45;
@@ -154,10 +167,11 @@ function drawCameraFrame(
 
 /** Build the full demo {@link PlayableEvent}. */
 export function generateDemoEvent(): PlayableEvent {
+  const reducedMotion = prefersReducedMotion();
   const tracks: CameraTrack[] = CAMERA_NAMES.map((camera) => ({
     camera,
     kind: 'procedural',
-    draw: (ctx, t, w, h) => drawCameraFrame(camera, ctx, t, w, h),
+    draw: (ctx, t, w, h) => drawCameraFrame(camera, ctx, t, w, h, reducedMotion),
   }));
 
   return {

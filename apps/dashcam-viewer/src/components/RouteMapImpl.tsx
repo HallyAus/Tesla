@@ -27,7 +27,7 @@ interface Props {
  * MapLibre GL map showing the event GPS location and (when telemetry has GPS)
  * the driven route polyline. Falls back to a message when no coordinates exist.
  */
-export function RouteMap({ event }: Props) {
+export default function RouteMapImpl({ event }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 

@@ -11,6 +11,7 @@ export default function App() {
   const [library, setLibrary] = useState<ParsedLibrary | null>(null);
   const [event, setEvent] = useState<PlayableEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const selectClipEvent = useCallback((ce: ClipEvent) => {
     setEvent((prev) => {
@@ -50,7 +51,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="brand">
-          <span className="brand-mark">▣</span>
+          <span className="brand-mark" aria-hidden="true">▣</span>
           <span>TeslaCam Viewer</span>
         </div>
         {event && (
@@ -62,18 +63,30 @@ export default function App() {
 
       {error && (
         <div className="banner banner--error" role="alert">
-          {error}
+          <span>{error}</span>
+          <button
+            className="banner-dismiss"
+            onClick={() => setError(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
         </div>
       )}
 
       {!event ? (
         <main className="app-main app-main--center">
-          <SourcePicker onLibrary={onLibrary} onDemo={onDemo} onError={setError} />
+          <SourcePicker
+            onLibrary={onLibrary}
+            onDemo={onDemo}
+            onError={setError}
+            onBusyChange={setLoading}
+          />
         </main>
       ) : (
         <main className="app-main">
           {library && library.events.length > 0 && (
-            <nav className="sidebar">
+            <nav className="sidebar" aria-label="Events">
               <h2 className="sidebar-title">
                 Events <span className="count">{library.events.length}</span>
               </h2>
@@ -98,8 +111,16 @@ export default function App() {
         </main>
       )}
 
+      {loading && (
+        <div className="loading-overlay" role="status" aria-live="polite">
+          <span className="spinner spinner--lg" aria-hidden="true" />
+          <span>Reading TeslaCam folder…</span>
+        </div>
+      )}
+
       <footer className="app-footer">
-        Local-first · no upload · open-source TeslaCam / Sentry viewer
+        Local-first · no upload · open-source TeslaCam / Sentry viewer ·{' '}
+        <span className="footer-hint">press ? for shortcuts</span>
       </footer>
     </div>
   );

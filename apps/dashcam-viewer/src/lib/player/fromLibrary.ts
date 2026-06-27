@@ -1,6 +1,7 @@
 /** Adapt a parsed real-folder {@link ClipEvent} into a {@link PlayableEvent}. */
 
 import { CAMERA_NAMES, type CameraName, type ClipEvent } from '../teslacam/types';
+import { telemetryFromEvent } from '../telemetry/fromEvent';
 import type { CameraTrack, PlayableEvent } from './model';
 
 export function playableFromClipEvent(event: ClipEvent): PlayableEvent {
@@ -28,6 +29,11 @@ export function playableFromClipEvent(event: ClipEvent): PlayableEvent {
 
   const title = formatTitle(event.startTime, event.bucket, event.metadata?.city);
 
+  // Surface everything event.json genuinely provides. Tesla's event.json has no
+  // per-frame driving stream, so this yields a GPS-only track (for the map/pin)
+  // or null — never fabricated speed/steering data. See telemetry/fromEvent.ts.
+  const { track: telemetry } = telemetryFromEvent(event.metadata, event.durationSec);
+
   return {
     id: event.id,
     title,
@@ -37,8 +43,7 @@ export function playableFromClipEvent(event: ClipEvent): PlayableEvent {
     cameras: event.cameras as CameraName[],
     tracks,
     metadata: event.metadata,
-    // Real folders may embed telemetry in newer firmware; not parsed in MVP.
-    telemetry: null,
+    telemetry,
     dispose: () => {
       for (const seg of event.segments) {
         for (const cam of Object.keys(seg.clips) as CameraName[]) {

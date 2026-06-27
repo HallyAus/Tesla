@@ -1,22 +1,37 @@
 import { sampleTelemetry } from '../lib/telemetry/sample';
+import { hasDrivingSignals } from '../lib/telemetry/fromEvent';
 import type { TelemetryTrack } from '../lib/telemetry/types';
 import type { MasterClock } from '../hooks/useMasterClock';
 
 interface Props {
   telemetry: TelemetryTrack | null;
   clock: MasterClock;
+  /** Trigger reason / location notes to surface for real folders. */
+  reasonLabel?: string | null;
 }
 
 /**
  * Speed / steering / brake / Autopilot HUD. Reads the telemetry track at the
- * master clock's time. Degrades gracefully: when no track is present it shows a
- * clear "no telemetry" state instead of empty gauges.
+ * master clock's time. Degrades gracefully in three states:
+ *  - no track at all  -> "no telemetry" notice,
+ *  - GPS-only track (real folder)  -> location-only notice (no fake gauges),
+ *  - full driving track (demo)  -> the HUD gauges.
  */
-export function TelemetryOverlay({ telemetry, clock }: Props) {
+export function TelemetryOverlay({ telemetry, clock, reasonLabel }: Props) {
   if (!telemetry || telemetry.samples.length === 0) {
     return (
       <div className="telemetry telemetry--empty">
         <span>No telemetry track for this event</span>
+        {reasonLabel && <span className="telemetry-reason">{reasonLabel}</span>}
+      </div>
+    );
+  }
+
+  if (!hasDrivingSignals(telemetry)) {
+    return (
+      <div className="telemetry telemetry--empty">
+        <span>Location only · no driving telemetry in this clip</span>
+        {reasonLabel && <span className="telemetry-reason">{reasonLabel}</span>}
       </div>
     );
   }

@@ -1,7 +1,8 @@
 /**
- * Snapshot export. Captures the current frame of a single camera tile
- * (`<video>` or `<canvas>`) into a PNG download. Multi-camera mux is a
- * documented follow-up (see README).
+ * Snapshot export. Draws an element (`<video>` or `<canvas>`) into a PNG
+ * download. The player passes a pre-composited canvas of the active multi-
+ * camera layout here, so a single snapshot captures the whole grid. (Full
+ * multi-camera *video* export lives in `recordClip.ts`.)
  */
 
 function triggerDownload(blob: Blob, fileName: string): void {

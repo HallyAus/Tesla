@@ -1,0 +1,45 @@
+name: Dashcam Viewer CI
+
+on:
+  push:
+    paths:
+      - "apps/dashcam-viewer/**"
+      - ".github/workflows/viewer.yml"
+  pull_request:
+    paths:
+      - "apps/dashcam-viewer/**"
+      - ".github/workflows/viewer.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/dashcam-viewer
+
+jobs:
+  build-test:
+    name: Build, test and type-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/dashcam-viewer/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Type-check
+        run: npx tsc --noEmit
